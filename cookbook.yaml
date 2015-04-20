@@ -1,0 +1,45 @@
+$globals:
+  shell: bash
+  version: "8.1"
+  vars:
+    p_sync: --sync
+
+install:
+  phony: true
+  keep_ts: true
+  requires:
+    - p-lock.toml
+  commands:
+    - p install ${p_sync} ${.extra}
+
+format:
+  phony: true
+  requires:
+    - install
+  commands:
+    - black .
+    - ruff check --fix-only .
+
+lint:
+  phony: true
+  requires:
+    - install
+  commands:
+    - black --check .
+    - p check --lockfile
+    - ruff check .
+    - mypy .
+
+tests:
+  phony: true
+  requires:
+    - install
+  commands:
+    - pytest ${.extra}
+
+p-lock.toml:
+  update: true
+  requires:
+    - pyproject.toml
+  commands:
+    - p lock

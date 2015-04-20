@@ -1,0 +1,77 @@
+name: tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install cli tools
+        run: |
+          python -m pip install --upgrade phosphorus yamk
+      - name: Use cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/venv-${{ matrix.python-version }}-lint
+          key: ${{ runner.os }}-${{ matrix.python-version }}-lint-${{ hashFiles('pyproject.toml') }}
+      - name: Install dependencies
+        run: |
+          python -m venv ~/.cache/venv-${{ matrix.python-version }}-lint
+          . ~/.cache/venv-${{ matrix.python-version }}-lint/bin/activate
+          yam install -g main -g lint -g test
+      - name: Lint the project
+        run: |
+          . ~/.cache/venv-${{ matrix.python-version }}-lint/bin/activate
+          yam -e lint
+  run-unittests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install cli tools
+        run: |
+          python -m pip install --upgrade phosphorus yamk
+      - name: Use cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/venv-${{ matrix.python-version }}-test
+          key: ${{ runner.os }}-${{ matrix.python-version }}-test-${{ hashFiles('pyproject.toml') }}
+      - name: Install dependencies
+        run: |
+          python -m venv ~/.cache/venv-${{ matrix.python-version }}-test
+          . ~/.cache/venv-${{ matrix.python-version }}-test/bin/activate
+          yam install -g main -g test
+      - name: Test the project
+        run: |
+          . ~/.cache/venv-${{ matrix.python-version }}-test/bin/activate
+          yam -e tests
