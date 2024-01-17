@@ -2,19 +2,10 @@ from binascii import hexlify, unhexlify
 
 import pytest
 
-from jose.constants import ALGORITHMS
+from joselib.constants import ALGORITHMS
+from joselib.keys import AESKey
 
-try:
-    from jose.backends.pycrypto_backend import AESKey as PyCryptoAESKey
-except ImportError as e:
-    PyCryptoAESKey = None
-
-try:
-    from jose.backends.cryptography_backend import CryptographyAESKey
-except ImportError as e:
-    CryptographyAESKey = None
-
-
+PyCryptoAESKey = None
 # List of Tuple of (alg, key, kek, wrapped) obtained from
 # https://tools.ietf.org/html/rfc3394#section-2.2.3.1
 VECTORS = (
@@ -39,21 +30,19 @@ VECTORS = (
 )
 
 
-@pytest.mark.cryptography
-@pytest.mark.skipif(CryptographyAESKey is None, reason="Cryptography backend not available")
-class TestCryptographyAesKeywrap:
-    @pytest.mark.parametrize("alg,hex_key,hex_kek,expected", VECTORS)
+class TestAESKeywrap:
+    @pytest.mark.parametrize(("alg", "hex_key", "hex_kek", "expected"), VECTORS)
     def test_wrap(self, alg, hex_key, hex_kek, expected):
         bin_key = unhexlify(hex_key)
         bin_kek = unhexlify(hex_kek)
-        aes_key = CryptographyAESKey(bin_kek, alg)
+        aes_key = AESKey(bin_kek, alg)
         actual = hexlify(aes_key.wrap_key(bin_key)).upper()
         assert actual == expected
 
-    @pytest.mark.parametrize("alg,expected,hex_kek,hex_wrapped", VECTORS)
+    @pytest.mark.parametrize(("alg", "expected", "hex_kek", "hex_wrapped"), VECTORS)
     def test_unwrap(self, alg, expected, hex_kek, hex_wrapped):
         bin_kek = unhexlify(hex_kek)
         bin_wrapped = unhexlify(hex_wrapped)
-        aes_key = CryptographyAESKey(bin_kek, alg)
+        aes_key = AESKey(bin_kek, alg)
         actual = hexlify(aes_key.unwrap_key(bin_wrapped)).upper()
         assert actual == expected

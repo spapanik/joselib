@@ -1,34 +1,33 @@
+from __future__ import annotations
+
 import base64
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from jose import jws, jwt
-from jose.exceptions import JWTError
+from joselib import jws, jwt
+from joselib.exceptions import JWTError
 
 
-@pytest.fixture
-def claims():
-    claims = {"a": "b"}
-    return claims
+@pytest.fixture()
+def claims() -> dict[str, str]:
+    return {"a": "b"}
 
 
-@pytest.fixture
-def key():
+@pytest.fixture()
+def key() -> str:
     return "secret"
 
 
-@pytest.fixture
-def headers():
-    headers = {
-        "kid": "my-key-id",
-    }
-    return headers
+@pytest.fixture()
+def headers() -> dict[str, str]:
+    return {"kid": "my-key-id"}
 
 
 class TestJWT:
-    def test_no_alg(self, claims, key):
+    @staticmethod
+    def test_no_alg(claims: dict[str, str], key) -> None:
         token = jwt.encode(claims, key, algorithm="HS384")
         b64header, b64payload, b64signature = token.split(".")
         header_json = base64.urlsafe_b64decode(b64header.encode("utf-8"))
@@ -36,14 +35,15 @@ class TestJWT:
         del header["alg"]
         bad_header_json_bytes = json.dumps(header).encode("utf-8")
         bad_b64header_bytes = base64.urlsafe_b64encode(bad_header_json_bytes)
-        bad_b64header_bytes_short = bad_b64header_bytes.replace(b"=", b"")
+        bad_b64header_bytes.replace(b"=", b"")
         bad_b64header = bad_b64header_bytes.decode("utf-8")
-        bad_token = ".".join([bad_b64header, b64payload, b64signature])
+        bad_token = f"{bad_b64header}.{b64payload}.{b64signature}"
         with pytest.raises(JWTError):
             jwt.decode(token=bad_token, key=key, algorithms=[])
 
+    @staticmethod
     @pytest.mark.parametrize(
-        "key, token",
+        ("key", "token"),
         [
             (
                 "1234567890",
@@ -55,14 +55,13 @@ class TestJWT:
             ),
         ],
     )
-    def test_numeric_key(self, key, token):
+    def test_numeric_key(key, token) -> None:
         token_info = jwt.decode(token, key)
         assert token_info == {"name": "test"}
 
-    def test_invalid_claims_json(self):
+    def test_invalid_claims_json(self, token):
         old_jws_verify = jws.verify
         try:
-            token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
 
             def return_invalid_json(token, key, algorithms, verify=True):
                 return b'["a", "b"}'
@@ -74,17 +73,18 @@ class TestJWT:
         finally:
             jws.verify = old_jws_verify
 
-    def test_invalid_claims(self):
+    def test_invalid_claims(self, token):
         old_jws_verify = jws.verify
         try:
-            token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
 
             def return_encoded_array(token, key, algorithms, verify=True):
                 return b'["a","b"]'
 
             jws.verify = return_encoded_array
 
-            with pytest.raises(JWTError, match="Invalid payload string: must be a json object"):
+            with pytest.raises(
+                JWTError, match="Invalid payload string: must be a json object"
+            ):
                 jwt.decode(token, "secret", ["HS256"])
         finally:
             jws.verify = old_jws_verify
@@ -99,10 +99,11 @@ class TestJWT:
         decoded = jwt.decode(encoded, key, "HS384")
         assert claims == decoded
 
-    def test_no_alg_default_headers(self, claims, key, headers):
+    @staticmethod
+    def test_no_alg_default_headers(claims, key) -> None:
         token = jwt.encode(claims, key, algorithm="HS384")
         b64header, b64payload, b64signature = token.split(".")
-        bad_token = b64header + "." + b64payload
+        bad_token = f"{b64header}.{b64payload}"
         with pytest.raises(JWTError):
             jwt.get_unverified_headers(bad_token)
 
@@ -117,7 +118,7 @@ class TestJWT:
     def test_deterministic_headers(self):
         from collections import OrderedDict
 
-        from jose.utils import base64url_decode
+        from joselib.utils import base64url_decode
 
         claims = {"a": "b"}
         key = "secret"
@@ -144,21 +145,30 @@ class TestJWT:
 
         # manually decode header to compare it to known good
         decoded_headers1 = base64url_decode(encoded_headers1.encode("utf-8"))
-        assert decoded_headers1 == b"""{"alg":"HS256","another_key":"another_value","kid":"my-key-id","typ":"JWT"}"""
+        assert (
+            decoded_headers1
+            == b"""{"alg":"HS256","another_key":"another_value","kid":"my-key-id","typ":"JWT"}"""
+        )
 
     def test_encode(self, claims, key):
         expected = (
-            ("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9" ".eyJhIjoiYiJ9" ".xNtk2S0CNbCBZX_f67pFgGRugaP1xi2ICfet3nwOSxw"),
-            ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" ".eyJhIjoiYiJ9" ".jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"),
+            (
+                "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9"
+                ".eyJhIjoiYiJ9"
+                ".xNtk2S0CNbCBZX_f67pFgGRugaP1xi2ICfet3nwOSxw"
+            ),
+            (
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                ".eyJhIjoiYiJ9"
+                ".jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
+            ),
         )
 
         encoded = jwt.encode(claims, key)
 
         assert encoded in expected
 
-    def test_decode(self, claims, key):
-        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" ".eyJhIjoiYiJ9" ".jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
-
+    def test_decode(self, claims, key, token):
         decoded = jwt.decode(token, key)
 
         assert decoded == claims
@@ -173,14 +183,14 @@ class TestJWT:
     def test_round_trip_with_different_key_types(self, key):
         token = jwt.encode({"testkey": "testvalue"}, key, algorithm="HS256")
         verified_data = jwt.decode(token, key, algorithms=["HS256"])
-        assert "testkey" in verified_data.keys()
+        assert "testkey" in verified_data
         assert verified_data["testkey"] == "testvalue"
 
     def test_leeway_is_int(self):
         pass
 
     def test_leeway_is_timedelta(self, claims, key):
-        nbf = datetime.utcnow() + timedelta(seconds=5)
+        nbf = datetime.now(tz=UTC) + timedelta(seconds=5)
         leeway = timedelta(seconds=10)
 
         claims = {
@@ -209,7 +219,7 @@ class TestJWT:
             jwt.decode(token, key)
 
     def test_nbf_datetime(self, key):
-        nbf = datetime.utcnow() - timedelta(seconds=5)
+        nbf = datetime.now(tz=UTC) - timedelta(seconds=5)
 
         claims = {"nbf": nbf}
 
@@ -217,7 +227,7 @@ class TestJWT:
         jwt.decode(token, key)
 
     def test_nbf_with_leeway(self, key):
-        nbf = datetime.utcnow() + timedelta(seconds=5)
+        nbf = datetime.now(tz=UTC) + timedelta(seconds=5)
 
         claims = {
             "nbf": nbf,
@@ -229,7 +239,7 @@ class TestJWT:
         jwt.decode(token, key, options=options)
 
     def test_nbf_in_future(self, key):
-        nbf = datetime.utcnow() + timedelta(seconds=5)
+        nbf = datetime.now(tz=UTC) + timedelta(seconds=5)
 
         claims = {"nbf": nbf}
 
@@ -239,7 +249,7 @@ class TestJWT:
             jwt.decode(token, key)
 
     def test_nbf_skip(self, key):
-        nbf = datetime.utcnow() + timedelta(seconds=5)
+        nbf = datetime.now(tz=UTC) + timedelta(seconds=5)
 
         claims = {"nbf": nbf}
 
@@ -261,7 +271,7 @@ class TestJWT:
             jwt.decode(token, key)
 
     def test_exp_datetime(self, key):
-        exp = datetime.utcnow() + timedelta(seconds=5)
+        exp = datetime.now(tz=UTC) + timedelta(seconds=5)
 
         claims = {"exp": exp}
 
@@ -269,7 +279,7 @@ class TestJWT:
         jwt.decode(token, key)
 
     def test_exp_with_leeway(self, key):
-        exp = datetime.utcnow() - timedelta(seconds=5)
+        exp = datetime.now(tz=UTC) - timedelta(seconds=5)
 
         claims = {
             "exp": exp,
@@ -281,7 +291,7 @@ class TestJWT:
         jwt.decode(token, key, options=options)
 
     def test_exp_in_past(self, key):
-        exp = datetime.utcnow() - timedelta(seconds=5)
+        exp = datetime.now(tz=UTC) - timedelta(seconds=5)
 
         claims = {"exp": exp}
 
@@ -291,7 +301,7 @@ class TestJWT:
             jwt.decode(token, key)
 
     def test_exp_skip(self, key):
-        exp = datetime.utcnow() - timedelta(seconds=5)
+        exp = datetime.now(tz=UTC) - timedelta(seconds=5)
 
         claims = {"exp": exp}
 
@@ -500,19 +510,19 @@ class TestJWT:
         assert jwt.get_unverified_claims(token) == claims
 
     @pytest.mark.parametrize(
-        "claim,value",
+        ("claim", "value"),
         [
             ("aud", "aud"),
             ("ait", "ait"),
-            ("exp", datetime.utcnow() + timedelta(seconds=3600)),
-            ("nbf", datetime.utcnow() - timedelta(seconds=5)),
+            ("exp", datetime.now(tz=UTC) + timedelta(seconds=3600)),
+            ("nbf", datetime.now(tz=UTC) - timedelta(seconds=5)),
             ("iss", "iss"),
             ("sub", "sub"),
             ("jti", "jti"),
         ],
     )
     def test_require(self, claims, key, claim, value):
-        options = {"require_" + claim: True, "verify_" + claim: False}
+        options = {f"require_{claim}": True, f"verify_{claim}": False}
 
         token = jwt.encode(claims, key)
         with pytest.raises(JWTError):

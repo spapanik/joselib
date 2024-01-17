@@ -1,9 +1,8 @@
 import pytest
 
-from jose import jwk
-from jose.backends import AESKey, ECKey, HMACKey, RSAKey
-from jose.backends.base import Key
-from jose.exceptions import JWKError
+from joselib import jwk
+from joselib.exceptions import JWKError
+from joselib.keys import ECKey, HMACKey, Key, RSAKey
 
 hmac_key = {
     "kty": "oct",
@@ -32,7 +31,8 @@ ec_key = {
 
 
 class TestJWK:
-    def test_interface(self):
+    @staticmethod
+    def test_interface() -> None:
         key = jwk.Key("key", "ALG")
 
         with pytest.raises(NotImplementedError):
@@ -41,8 +41,8 @@ class TestJWK:
         with pytest.raises(NotImplementedError):
             key.verify("", "")
 
-    @pytest.mark.skipif(RSAKey is None, reason="RSA is not available")
-    def test_invalid_hash_alg(self):
+    @staticmethod
+    def test_invalid_hash_alg() -> None:
         with pytest.raises(JWKError):
             key = HMACKey(hmac_key, "RS512")
 
@@ -52,8 +52,8 @@ class TestJWK:
         with pytest.raises(JWKError):
             key = ECKey(ec_key, "RS512")  # noqa: F841
 
-    @pytest.mark.skipif(RSAKey is None, reason="RSA is not available")
-    def test_invalid_jwk(self):
+    @staticmethod
+    def test_invalid_jwk() -> None:
         with pytest.raises(JWKError):
             key = HMACKey(rsa_key, "HS256")
 
@@ -63,8 +63,8 @@ class TestJWK:
         with pytest.raises(JWKError):
             key = ECKey(rsa_key, "ES256")  # noqa: F841
 
-    @pytest.mark.skipif(RSAKey is None, reason="RSA is not available")
-    def test_RSAKey_errors(self):
+    @staticmethod
+    def test_RSAKey_errors() -> None:
         rsa_key = {
             "kty": "RSA",
             "kid": "bilbo.baggins@hobbiton.example",
@@ -87,7 +87,8 @@ class TestJWK:
         with pytest.raises(JWKError):
             key = RSAKey(rsa_key, "RS256")  # noqa: F841
 
-    def test_construct_from_jwk(self):
+    @staticmethod
+    def test_construct_from_jwk() -> None:
         hmac_key = {
             "kty": "oct",
             "kid": "018c0ae5-4d9b-471b-bfd6-eef314bc7037",
@@ -99,11 +100,13 @@ class TestJWK:
         key = jwk.construct(hmac_key)
         assert isinstance(key, jwk.Key)
 
-    def test_construct_EC_from_jwk(self):
+    @staticmethod
+    def test_construct_EC_from_jwk() -> None:
         key = ECKey(ec_key, algorithm="ES512")
         assert isinstance(key, jwk.Key)
 
-    def test_construct_from_jwk_missing_alg(self):
+    @staticmethod
+    def test_construct_from_jwk_missing_alg() -> None:
         hmac_key = {
             "kty": "oct",
             "kid": "018c0ae5-4d9b-471b-bfd6-eef314bc7037",
@@ -117,7 +120,8 @@ class TestJWK:
         with pytest.raises(JWKError):
             key = jwk.construct("key", algorithm="NONEXISTENT")  # noqa: F841
 
-    def test_get_key(self):
+    @staticmethod
+    def test_get_key() -> None:
         hs_key = jwk.get_key("HS256")
         assert hs_key == HMACKey
         assert issubclass(hs_key, Key)
@@ -127,11 +131,12 @@ class TestJWK:
 
         assert jwk.get_key("NONEXISTENT") is None
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES provider")
-    def test_get_aes_key(self):
+    @staticmethod
+    def test_get_aes_key() -> None:
         assert issubclass(jwk.get_key("A256CBC-HS512"), Key)
 
-    def test_register_key(self):
+    @staticmethod
+    def test_register_key() -> None:
         assert jwk.register_key("ALG", jwk.Key)
         assert jwk.get_key("ALG") == jwk.Key
 

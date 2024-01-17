@@ -1,30 +1,13 @@
 import base64
 import json
 
-try:
-    from jose.backends import rsa_backend
-    from jose.backends.rsa_backend import RSAKey as PurePythonRSAKey
-except ImportError:
-    PurePythonRSAKey = rsa_backend = None
-
-try:
-    from Crypto.PublicKey import RSA as PyCryptoRSA
-except ImportError:
-    PyCryptoRSA = None
-
-try:
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives.asymmetric import rsa as pyca_rsa
-
-    from jose.backends.cryptography_backend import CryptographyRSAKey
-except ImportError:
-    default_backend = pyca_rsa = CryptographyRSAKey = None
-
 import pytest
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa as pyca_rsa
 
-from jose.backends import RSAKey
-from jose.constants import ALGORITHMS
-from jose.exceptions import JOSEError, JWKError
+from joselib.constants import ALGORITHMS
+from joselib.exceptions import JOSEError, JWKError
+from joselib.keys import RSAKey
 
 private_key_4096_pkcs1 = b"""-----BEGIN RSA PRIVATE KEY-----
 MIIJKwIBAAKCAgEAtSKfSeI0fukRIX38AHlKB1YPpX8PUYN2JdvfM+XjNmLfU1M7
@@ -169,13 +152,13 @@ RSA_KW_ALGOS = (
 )
 
 
-def _legacy_invalid_private_key_pkcs8_der():
+def _legacy_invalid_private_key_pkcs8_der() -> bytes:
     legacy_key = LEGACY_INVALID_PRIVATE_KEY_PKCS8_PEM.strip()
     legacy_key = legacy_key[legacy_key.index(b"\n") : legacy_key.rindex(b"\n")]
     return base64.b64decode(legacy_key)
 
 
-def _actually_invalid_private_key_pkcs8_der():
+def _actually_invalid_private_key_pkcs8_der() -> bytes:
     legacy_key = _legacy_invalid_private_key_pkcs8_der()
     invalid_key = legacy_key[: len(rsa_backend.LEGACY_INVALID_PKCS8_RSA_HEADER)]
     invalid_key += b"\x00"
@@ -183,68 +166,30 @@ def _actually_invalid_private_key_pkcs8_der():
     return invalid_key
 
 
-def _actually_invalid_private_key_pkcs8_pem():
+def _actually_invalid_private_key_pkcs8_pem() -> bytes:
     invalid_key = b"-----BEGIN PRIVATE KEY-----\n"
     invalid_key += base64.b64encode(_actually_invalid_private_key_pkcs8_der())
     invalid_key += b"\n-----END PRIVATE KEY-----\n"
     return invalid_key
 
 
-@pytest.mark.skipif(PurePythonRSAKey is None, reason="python-rsa backend not available")
-class TestPurePythonRsa:
-    def test_python_rsa_legacy_pem_read(self):
-        key = PurePythonRSAKey(LEGACY_INVALID_PRIVATE_KEY_PKCS8_PEM, ALGORITHMS.RS256)
-        new_pem = key.to_pem(pem_format="PKCS8")
-        assert new_pem != LEGACY_INVALID_PRIVATE_KEY_PKCS8_PEM
-
-    def test_python_rsa_legacy_pem_invalid(self):
-        with pytest.raises(JWKError) as excinfo:
-            PurePythonRSAKey(_actually_invalid_private_key_pkcs8_pem(), ALGORITHMS.RS256)
-
-        excinfo.match("Invalid private key encoding")
-
-    def test_python_rsa_legacy_private_key_pkcs8_to_pkcs1(self):
-        legacy_key = _legacy_invalid_private_key_pkcs8_der()
-        legacy_pkcs1 = legacy_key[len(rsa_backend.LEGACY_INVALID_PKCS8_RSA_HEADER) :]
-
-        assert rsa_backend._legacy_private_key_pkcs8_to_pkcs1(legacy_key) == legacy_pkcs1
-
-    def test_python_rsa_legacy_private_key_pkcs8_to_pkcs1_invalid(self):
-        invalid_key = _actually_invalid_private_key_pkcs8_der()
-
-        with pytest.raises(ValueError) as excinfo:
-            rsa_backend._legacy_private_key_pkcs8_to_pkcs1(invalid_key)
-
-        excinfo.match("Invalid private key encoding")
-
-
-@pytest.mark.cryptography
-@pytest.mark.skipif(
-    None in (default_backend, pyca_rsa, CryptographyRSAKey), reason="Cryptography backend not available"
-)
-def test_cryptography_RSA_key_instance():
+def test_cryptography_RSA_key_instance() -> None:
     key = pyca_rsa.RSAPublicNumbers(
-        int(65537),
-        int(
-            26057131595212989515105618545799160306093557851986992545257129318694524535510983041068168825614868056510242030438003863929818932202262132630250203397069801217463517914103389095129323580576852108653940669240896817348477800490303630912852266209307160550655497615975529276169196271699168537716821419779900117025818140018436554173242441334827711966499484119233207097432165756707507563413323850255548329534279691658369466534587631102538061857114141268972476680597988266772849780811214198186940677291891818952682545840788356616771009013059992237747149380197028452160324144544057074406611859615973035412993832273216732343819
-        ),
+        65537,
+        26057131595212989515105618545799160306093557851986992545257129318694524535510983041068168825614868056510242030438003863929818932202262132630250203397069801217463517914103389095129323580576852108653940669240896817348477800490303630912852266209307160550655497615975529276169196271699168537716821419779900117025818140018436554173242441334827711966499484119233207097432165756707507563413323850255548329534279691658369466534587631102538061857114141268972476680597988266772849780811214198186940677291891818952682545840788356616771009013059992237747149380197028452160324144544057074406611859615973035412993832273216732343819,
     ).public_key(default_backend())
 
-    pubkey = CryptographyRSAKey(key, ALGORITHMS.RS256)
+    pubkey = RSAKey(key, ALGORITHMS.RS256)
     assert pubkey.is_public()
 
     pem = pubkey.to_pem()
     assert pem.startswith(b"-----BEGIN PUBLIC KEY-----")
 
 
-@pytest.mark.cryptography
 @pytest.mark.parametrize("private_key_pem", PRIVATE_KEYS)
 @pytest.mark.parametrize("algorithm", RSA_KW_ALGOS)
-@pytest.mark.skipif(
-    None in (default_backend, pyca_rsa, CryptographyRSAKey), reason="Cryptography backend not available"
-)
 def test_cryptography_wrap_key_unencoded_cleartext(private_key_pem, algorithm):
-    private_key = CryptographyRSAKey(private_key_pem, algorithm)
+    private_key = RSAKey(private_key_pem, algorithm)
     key = b"test"
     public_key = private_key.public_key()
     wrapped = public_key.wrap_key(key)
@@ -252,36 +197,39 @@ def test_cryptography_wrap_key_unencoded_cleartext(private_key_pem, algorithm):
     assert unwrapped == key
 
 
-@pytest.mark.skipif(RSAKey is None, reason="RSA is not available")
 class TestRSAAlgorithm:
-    def test_RSA_key(self):
+    @staticmethod
+    def test_RSA_key() -> None:
         assert not RSAKey(private_key_4096_pkcs1, ALGORITHMS.RS256).is_public()
 
-    def test_string_secret(self):
+    @staticmethod
+    def test_string_secret() -> None:
         key = "secret"
         with pytest.raises(JOSEError):
             RSAKey(key, ALGORITHMS.RS256)
 
-    def test_object(self):
+    @staticmethod
+    def test_object() -> None:
         key = object()
         with pytest.raises(JOSEError):
             RSAKey(key, ALGORITHMS.RS256)
 
-    def test_bad_cert(
-        self,
-    ):
+    @staticmethod
+    def test_bad_cert() -> None:
         key = "-----BEGIN CERTIFICATE-----"
         with pytest.raises(JOSEError):
             RSAKey(key, ALGORITHMS.RS256)
 
-    def test_invalid_algorithm(self):
+    @staticmethod
+    def test_invalid_algorithm() -> None:
         with pytest.raises(JWKError):
             RSAKey(private_key_4096_pkcs1, ALGORITHMS.ES256)
 
         with pytest.raises(JWKError):
             RSAKey({"kty": "bla"}, ALGORITHMS.RS256)
 
-    def test_RSA_jwk(self):
+    @staticmethod
+    def test_RSA_jwk() -> None:
         key = {
             "kty": "RSA",
             "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
@@ -318,8 +266,9 @@ class TestRSAAlgorithm:
         # None of the extra parameters are present, but 'key' is still private.
         assert not RSAKey(key, ALGORITHMS.RS256).is_public()
 
+    @staticmethod
     @pytest.mark.parametrize("private_key", PRIVATE_KEYS)
-    def test_get_public_key(self, private_key):
+    def test_get_public_key(private_key) -> None:
         key = RSAKey(private_key, ALGORITHMS.RS256)
         public_key = key.public_key()
         public_key2 = public_key.public_key()
@@ -327,8 +276,9 @@ class TestRSAAlgorithm:
         assert public_key2.is_public()
         assert public_key == public_key2
 
+    @staticmethod
     @pytest.mark.parametrize("pkey", PRIVATE_KEYS)
-    def test_to_pem(self, pkey):
+    def test_to_pem(pkey) -> None:
         key = RSAKey(pkey, ALGORITHMS.RS256)
         assert key.to_pem(pem_format="PKCS1").strip() == pkey.strip()
 
@@ -338,7 +288,8 @@ class TestRSAAlgorithm:
         newkey = RSAKey(pkcs8, ALGORITHMS.RS256)
         assert newkey.to_pem(pem_format="PKCS1").strip() == pkey.strip()
 
-    def assert_parameters(self, as_dict, private):
+    @staticmethod
+    def assert_parameters(as_dict, private) -> None:
         assert isinstance(as_dict, dict)
 
         # Public parameters should always be there.
@@ -369,7 +320,7 @@ class TestRSAAlgorithm:
         assert RSAKey(key.to_dict(), ALGORITHMS.RS256).to_dict() == key.to_dict()
 
     @pytest.mark.parametrize("private_key", PRIVATE_KEYS)
-    def test_to_dict(self, private_key):
+    def test_to_dict(self, private_key) -> None:
         key = RSAKey(private_key, ALGORITHMS.RS256)
         self.assert_parameters(key.to_dict(), private=True)
         self.assert_parameters(key.public_key().to_dict(), private=False)

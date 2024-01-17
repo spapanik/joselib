@@ -1,9 +1,9 @@
 import pytest
 
-from jose.jwk import Key
+from joselib.keys import Key
 
 
-@pytest.fixture
+@pytest.fixture()
 def alg():
     return Key("key", "ALG")
 

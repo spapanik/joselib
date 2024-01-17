@@ -2,29 +2,11 @@ import json
 
 import pytest
 
-import jose.backends
-from jose import jwe
-from jose.constants import ALGORITHMS, ZIPS
-from jose.exceptions import JWEParseError
-from jose.jwk import AESKey, RSAKey
-from jose.utils import base64url_decode
-
-backends = []
-try:
-    import jose.backends.cryptography_backend  # noqa E402
-
-    backends.append(jose.backends.cryptography_backend)
-except ImportError:
-    pass
-
-import jose.backends.native  # noqa E402
-
-try:
-    from jose.backends.rsa_backend import RSAKey as RSABackendRSAKey
-except ImportError:
-    RSABackendRSAKey = None
-
-backends.append(jose.backends.native)
+import joselib.keys.aes
+from joselib import jwe
+from joselib.constants import ALGORITHMS, ZIPS
+from joselib.exceptions import JWEParseError
+from joselib.utils import base64url_decode
 
 PRIVATE_KEY_PEM = """-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEA3AyQGW/Q8AKJH2Mfjv1c67iYcwIn+Z2tpqHDQQV9CfSx9CMs
@@ -74,7 +56,8 @@ OCT_512_BIT_KEY = b"\x04\xd3\x1f\xc5T\x9d\xfc\xfe\x0bd\x9d\xfa?\xaaj\xcek|\xd4-o
 
 
 class TestGetUnverifiedHeader:
-    def test_valid_header_and_auth_tag(self):
+    @staticmethod
+    def test_valid_header_and_auth_tag() -> None:
         expected_header = {"alg": "RSA1_5", "enc": "A128CBC-HS256"}
         jwe_str = (
             "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
@@ -92,11 +75,13 @@ class TestGetUnverifiedHeader:
         actual_header = jwe.get_unverified_header(jwe_str)
         assert expected_header == actual_header
 
-    def test_invalid_jwe_string_raises_jwe_parse_error(self):
+    @staticmethod
+    def test_invalid_jwe_string_raises_jwe_parse_error() -> None:
         with pytest.raises(JWEParseError):
             jwe.get_unverified_header("invalid jwe string")
 
-    def test_non_json_header_section_raises_jwe_parse_error(self):
+    @staticmethod
+    def test_non_json_header_section_raises_jwe_parse_error() -> None:
         jwe_str = (
             "not json."
             "UGhIOguC7IuEvf_NPVaXsGMoLOmwvc1GyqlIKOK1nN94nHPoltGRhWhw7"
@@ -114,7 +99,8 @@ class TestGetUnverifiedHeader:
         with pytest.raises(JWEParseError):
             jwe.get_unverified_header(jwe_str)
 
-    def test_wrong_auth_tag_is_ignored(self):
+    @staticmethod
+    def test_wrong_auth_tag_is_ignored() -> None:
         expected_header = {"alg": "RSA1_5", "enc": "A128CBC-HS256"}
         jwe_str = (
             "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
@@ -133,8 +119,6 @@ class TestGetUnverifiedHeader:
         assert expected_header == actual_header
 
 
-@pytest.mark.skipif(AESKey is None, reason="Test requires AES Backend")
-@pytest.mark.skipif(RSAKey is RSABackendRSAKey, reason="RSA Backend does not support all modes")
 class TestDecrypt:
     JWE_RSA_PACKAGES = (
         pytest.param(
@@ -292,55 +276,61 @@ class TestDecrypt:
         ),
     )
 
+    @staticmethod
     @pytest.mark.parametrize("jwe_package", JWE_RSA_PACKAGES)
-    def test_decrypt_rsa_key_wrap(self, jwe_package):
+    def test_decrypt_rsa_key_wrap(jwe_package) -> None:
         headers = jwe.get_unverified_header(jwe_package)
-        if headers["alg"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("alg {} not supported".format(headers["alg"]))
-        if headers["enc"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("enc {} not supported".format(headers["enc"]))
+        if (alg := headers["alg"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"alg {alg} not supported")
+        if (enc := headers["enc"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"enc {enc} not supported")
         key = PRIVATE_KEY_PEM
         actual = jwe.decrypt(jwe_package, key)
         assert actual == b"Live long and prosper."
 
+    @staticmethod
     @pytest.mark.parametrize("jwe_package", JWE_128_BIT_OCT_PACKAGES)
-    def test_decrypt_oct_128_key_wrap(self, jwe_package):
+    def test_decrypt_oct_128_key_wrap(jwe_package) -> None:
         key = OCT_128_BIT_KEY
         headers = jwe.get_unverified_header(jwe_package)
-        if headers["alg"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("alg {} not supported".format(headers["alg"]))
-        if headers["enc"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("enc {} not supported".format(headers["enc"]))
+        if (alg := headers["alg"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"alg {alg} not supported")
+        if (enc := headers["enc"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"enc {enc} not supported")
         actual = jwe.decrypt(jwe_package, key)
         assert actual == b"Live long and prosper."
 
+    @staticmethod
     @pytest.mark.parametrize("jwe_package", JWE_192_BIT_OCT_PACKAGES)
-    def test_decrypt_oct_192_key_wrap(self, jwe_package):
+    def test_decrypt_oct_192_key_wrap(jwe_package) -> None:
         headers = jwe.get_unverified_header(jwe_package)
-        if headers["alg"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("alg {} not supported".format(headers["alg"]))
-        if headers["enc"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("enc {} not supported".format(headers["enc"]))
+        if (alg := headers["alg"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"alg {alg} not supported")
+        if (enc := headers["enc"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"enc {enc} not supported")
         key = OCT_192_BIT_KEY
         actual = jwe.decrypt(jwe_package, key)
         assert actual == b"Live long and prosper."
 
+    @staticmethod
     @pytest.mark.parametrize("jwe_package", JWE_256_BIT_OCT_PACKAGES)
-    def test_decrypt_oct_256_key_wrap(self, jwe_package):
+    def test_decrypt_oct_256_key_wrap(jwe_package) -> None:
         headers = jwe.get_unverified_header(jwe_package)
-        if headers["alg"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("alg {} not supported".format(headers["alg"]))
-        if headers["enc"] not in ALGORITHMS.SUPPORTED:
-            pytest.skip("enc {} not supported".format(headers["enc"]))
+        if (alg := headers["alg"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"alg {alg} not supported")
+        if (enc := headers["enc"]) not in ALGORITHMS.SUPPORTED:
+            pytest.skip(f"enc {enc} not supported")
         key = OCT_256_BIT_KEY
         actual = jwe.decrypt(jwe_package, key)
         assert actual == b"Live long and prosper."
 
-    def test_invalid_jwe_is_parse_error(self):
+    @staticmethod
+    def test_invalid_jwe_is_parse_error() -> None:
         with pytest.raises(JWEParseError):
             jwe.decrypt("invalid", "key")
 
-    def test_non_json_header_is_parse_error(self):
+    @staticmethod
+    def test_non_json_header_is_parse_error() -> None:
         jwe_str = (
             "ciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
             "UGhIOguC7IuEvf_NPVaXsGMoLOmwvc1GyqlIKOK1nN94nHPoltGRhWhw7"
@@ -359,8 +349,8 @@ class TestDecrypt:
 
 
 class TestEncrypt:
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_rfc7516_appendix_b_direct(self, monkeypatch):
+    @staticmethod
+    def test_rfc7516_appendix_b_direct(monkeypatch) -> None:
         algorithm = ALGORITHMS.DIR
         encryption = ALGORITHMS.A128CBC_HS256
         key = bytes(
@@ -402,31 +392,44 @@ class TestEncrypt:
             )
         )
         plain_text = b"Live long and prosper."
-        expected_iv = bytes(bytearray([3, 22, 60, 12, 43, 67, 104, 105, 108, 108, 105, 99, 111, 116, 104, 101]))
+        expected_iv = bytes(
+            bytearray(
+                [3, 22, 60, 12, 43, 67, 104, 105, 108, 108, 105, 99, 111, 116, 104, 101]
+            )
+        )
 
-        for backend in backends:
-            monkeypatch.setattr(backend, "get_random_bytes", lambda x: expected_iv if x == 16 else key)
+        monkeypatch.setattr(
+            joselib.keys.aes,
+            "get_random_bytes",
+            lambda x: expected_iv if x == 16 else key,
+        )
 
         expected = b"eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..AxY8DCtDaGlsbGljb3RoZQ.KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY.BIiCkt8mWOVyJOqDMwNqaQ"
         actual = jwe.encrypt(plain_text, key, encryption, algorithm)
 
         assert actual == expected
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    @pytest.mark.parametrize("alg", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.RSA_KW))
-    @pytest.mark.parametrize("enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC))
+    @staticmethod
+    @pytest.mark.parametrize(
+        "alg", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.RSA_KW)
+    )
+    @pytest.mark.parametrize(
+        "enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC)
+    )
     @pytest.mark.parametrize("zip", ZIPS.SUPPORTED)
-    def test_encrypt_decrypt_rsa_kw(self, alg, enc, zip):
+    def test_encrypt_decrypt_rsa_kw(alg, enc, zip) -> None:
         expected = b"Live long and prosper."
         jwe_value = jwe.encrypt(expected[:], PUBLIC_KEY_PEM, enc, alg, zip)
         actual = jwe.decrypt(jwe_value, PRIVATE_KEY_PEM)
         assert actual == expected
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
+    @staticmethod
     @pytest.mark.parametrize("alg", ALGORITHMS.AES_KW)
-    @pytest.mark.parametrize("enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC))
+    @pytest.mark.parametrize(
+        "enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC)
+    )
     @pytest.mark.parametrize("zip", ZIPS.SUPPORTED)
-    def test_encrypt_decrypt_aes_kw(self, alg, enc, zip):
+    def test_encrypt_decrypt_aes_kw(alg, enc, zip) -> None:
         if alg == ALGORITHMS.A128KW:
             key = OCT_128_BIT_KEY
         elif alg == ALGORITHMS.A192KW:
@@ -440,10 +443,12 @@ class TestEncrypt:
         actual = jwe.decrypt(jwe_value, key)
         assert actual == expected
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    @pytest.mark.parametrize("enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC))
+    @staticmethod
+    @pytest.mark.parametrize(
+        "enc", filter(lambda x: x in ALGORITHMS.SUPPORTED, ALGORITHMS.AES_ENC)
+    )
     @pytest.mark.parametrize("zip", ZIPS.SUPPORTED)
-    def test_encrypt_decrypt_dir_kw(self, enc, zip):
+    def test_encrypt_decrypt_dir_kw(enc, zip) -> None:
         if enc == ALGORITHMS.A128GCM:
             key = OCT_128_BIT_KEY
         elif enc == ALGORITHMS.A192GCM:
@@ -461,8 +466,8 @@ class TestEncrypt:
         actual = jwe.decrypt(jwe_value, key)
         assert actual == expected
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_alg_enc_headers(self):
+    @staticmethod
+    def test_alg_enc_headers() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg)
@@ -470,56 +475,56 @@ class TestEncrypt:
         assert header["enc"] == enc
         assert header["alg"] == alg
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_cty_header_present_when_provided(self):
+    @staticmethod
+    def test_cty_header_present_when_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg, cty="expected")
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert header["cty"] == "expected"
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_cty_header_not_present_when_not_provided(self):
+    @staticmethod
+    def test_cty_header_not_present_when_not_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg)
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert "cty" not in header
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_zip_header_present_when_provided(self):
+    @staticmethod
+    def test_zip_header_present_when_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt(b"Text", PUBLIC_KEY_PEM, enc, alg, zip=ZIPS.DEF)
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert header["zip"] == ZIPS.DEF
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_zip_header_not_present_when_not_provided(self):
+    @staticmethod
+    def test_zip_header_not_present_when_not_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt(b"Text", PUBLIC_KEY_PEM, enc, alg)
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert "zip" not in header
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_zip_header_not_present_when_none(self):
+    @staticmethod
+    def test_zip_header_not_present_when_none() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg, zip=ZIPS.NONE)
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert "zip" not in header
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_kid_header_present_when_provided(self):
+    @staticmethod
+    def test_kid_header_present_when_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg, kid="expected")
         header = json.loads(base64url_decode(encrypted.split(b".")[0]))
         assert header["kid"] == "expected"
 
-    @pytest.mark.skipif(AESKey is None, reason="No AES backend")
-    def test_kid_header_not_present_when_not_provided(self):
+    @staticmethod
+    def test_kid_header_not_present_when_not_provided() -> None:
         enc = ALGORITHMS.A256CBC_HS512
         alg = ALGORITHMS.RSA_OAEP_256
         encrypted = jwe.encrypt("Text", PUBLIC_KEY_PEM, enc, alg)

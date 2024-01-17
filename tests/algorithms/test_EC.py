@@ -1,25 +1,12 @@
 import json
 
-from jose.backends import ECKey
-from jose.constants import ALGORITHMS
-from jose.exceptions import JOSEError, JWKError
-
-try:
-    import ecdsa
-
-    from jose.backends.ecdsa_backend import ECDSAECKey
-except ImportError:
-    ECDSAECKey = ecdsa = None
-
-try:
-    from cryptography.hazmat.backends import default_backend as CryptographyBackend
-    from cryptography.hazmat.primitives.asymmetric import ec as CryptographyEc
-
-    from jose.backends.cryptography_backend import CryptographyECKey
-except ImportError:
-    CryptographyECKey = CryptographyEc = CryptographyBackend = None
-
 import pytest
+from cryptography.hazmat.backends import default_backend as CryptographyBackend
+from cryptography.hazmat.primitives.asymmetric import ec as CryptographyEc
+
+from joselib.constants import ALGORITHMS
+from joselib.exceptions import JOSEError, JWKError
+from joselib.keys import ECKey
 
 private_key = """-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIOiSs10XnBlfykk5zsJRmzYybKdMlGniSJcssDvUcF6DoAoGCCqGSM49
@@ -51,57 +38,47 @@ RAW_SIGNATURE = (
 
 def _backend_exception_types():
     """Build the backend exception types based on available backends."""
-    if None not in (ECDSAECKey, ecdsa):
-        yield ECDSAECKey, ecdsa.BadDigestError
-
-    if CryptographyECKey is not None:
-        yield CryptographyECKey, TypeError
+    if ECKey is not None:
+        yield ECKey, TypeError
 
 
-@pytest.mark.ecdsa
-@pytest.mark.skipif(None in (ECDSAECKey, ecdsa), reason="python-ecdsa backend not available")
-def test_key_from_ecdsa():
-    key = ecdsa.SigningKey.from_pem(private_key)
-    assert not ECKey(key, ALGORITHMS.ES256).is_public()
-
-
-@pytest.mark.cryptography
-@pytest.mark.skipif(CryptographyECKey is None, reason="pyca/cryptography backend not available")
 @pytest.mark.parametrize(
-    "algorithm, expected_length", ((ALGORITHMS.ES256, 32), (ALGORITHMS.ES384, 48), (ALGORITHMS.ES512, 66))
+    ("algorithm", "expected_length"),
+    [(ALGORITHMS.ES256, 32), (ALGORITHMS.ES384, 48), (ALGORITHMS.ES512, 66)],
 )
-def test_cryptography_sig_component_length(algorithm, expected_length):
+def test_cryptography_sig_component_length(algorithm, expected_length) -> None:
     # Put mapping inside here to avoid more complex handling for test runs that do not have pyca/cryptography
     mapping = {
         ALGORITHMS.ES256: CryptographyEc.SECP256R1,
         ALGORITHMS.ES384: CryptographyEc.SECP384R1,
         ALGORITHMS.ES512: CryptographyEc.SECP521R1,
     }
-    key = CryptographyECKey(
-        CryptographyEc.generate_private_key(mapping[algorithm](), backend=CryptographyBackend()), algorithm
+    key = ECKey(
+        CryptographyEc.generate_private_key(
+            mapping[algorithm](), backend=CryptographyBackend()
+        ),
+        algorithm,
     )
     assert key._sig_component_length() == expected_length
 
 
-@pytest.mark.cryptography
-@pytest.mark.skipif(CryptographyECKey is None, reason="pyca/cryptography backend not available")
-def test_cryptograhy_der_to_raw():
-    key = CryptographyECKey(private_key, ALGORITHMS.ES256)
+def test_cryptograhy_der_to_raw() -> None:
+    key = ECKey(private_key, ALGORITHMS.ES256)
     assert key._der_to_raw(DER_SIGNATURE) == RAW_SIGNATURE
 
 
-@pytest.mark.cryptography
-@pytest.mark.skipif(CryptographyECKey is None, reason="pyca/cryptography backend not available")
-def test_cryptograhy_raw_to_der():
-    key = CryptographyECKey(private_key, ALGORITHMS.ES256)
+def test_cryptograhy_raw_to_der() -> None:
+    key = ECKey(private_key, ALGORITHMS.ES256)
     assert key._raw_to_der(RAW_SIGNATURE) == DER_SIGNATURE
 
 
 class TestECAlgorithm:
-    def test_key_from_pem(self):
+    @staticmethod
+    def test_key_from_pem() -> None:
         assert not ECKey(private_key, ALGORITHMS.ES256).is_public()
 
-    def test_to_pem(self):
+    @staticmethod
+    def test_to_pem() -> None:
         key = ECKey(private_key, ALGORITHMS.ES256)
         assert not key.is_public()
         assert key.to_pem().strip() == private_key.strip().encode("utf-8")
@@ -109,36 +86,42 @@ class TestECAlgorithm:
         public_pem = key.public_key().to_pem()
         assert ECKey(public_pem, ALGORITHMS.ES256).is_public()
 
-    @pytest.mark.parametrize("Backend,ExceptionType", _backend_exception_types())
-    def test_key_too_short(self, Backend, ExceptionType):
+    @staticmethod
+    @pytest.mark.parametrize(("Backend", "ExceptionType"), _backend_exception_types())
+    def test_key_too_short(Backend, ExceptionType) -> None:
         key = Backend(TOO_SHORT_PRIVATE_KEY, ALGORITHMS.ES512)
         with pytest.raises(ExceptionType):
             key.sign(b"foo")
 
-    def test_get_public_key(self):
+    @staticmethod
+    def test_get_public_key() -> None:
         key = ECKey(private_key, ALGORITHMS.ES256)
         pubkey = key.public_key()
         pubkey2 = pubkey.public_key()
         assert pubkey == pubkey2
 
-    def test_string_secret(self):
+    @staticmethod
+    def test_string_secret() -> None:
         key = "secret"
         with pytest.raises(JOSEError):
             ECKey(key, ALGORITHMS.ES256)
 
-    def test_object(self):
+    @staticmethod
+    def test_object() -> None:
         key = object()
         with pytest.raises(JOSEError):
             ECKey(key, ALGORITHMS.ES256)
 
-    def test_invalid_algorithm(self):
+    @staticmethod
+    def test_invalid_algorithm() -> None:
         with pytest.raises(JWKError):
             ECKey(private_key, "nonexistent")
 
         with pytest.raises(JWKError):
             ECKey({"kty": "bla"}, ALGORITHMS.ES256)
 
-    def test_EC_jwk(self):
+    @staticmethod
+    def test_EC_jwk() -> None:
         key = {
             "kty": "EC",
             "kid": "bilbo.baggins@hobbiton.example",
@@ -162,7 +145,8 @@ class TestECAlgorithm:
         with pytest.raises(JWKError):
             ECKey(key, ALGORITHMS.ES512)
 
-    def test_verify(self):
+    @staticmethod
+    def test_verify() -> None:
         key = ECKey(private_key, ALGORITHMS.ES256)
         msg = b"test"
         signature = key.sign(msg)
@@ -171,7 +155,8 @@ class TestECAlgorithm:
         assert bool(public_key.verify(msg, signature))
         assert not bool(public_key.verify(msg, b"not a signature"))
 
-    def assert_parameters(self, as_dict, private):
+    @staticmethod
+    def assert_parameters(as_dict, private) -> None:
         assert isinstance(as_dict, dict)
 
         # Public parameters should always be there.
@@ -193,7 +178,7 @@ class TestECAlgorithm:
         # as_dict should be serializable to JSON
         json.dumps(as_dict)
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         key = ECKey(private_key, ALGORITHMS.ES256)
         self.assert_parameters(key.to_dict(), private=True)
         self.assert_parameters(key.public_key().to_dict(), private=False)

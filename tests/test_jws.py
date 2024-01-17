@@ -3,46 +3,38 @@ import warnings
 
 import pytest
 
-from jose import jwk, jws
-from jose.backends import RSAKey
-from jose.constants import ALGORITHMS
-from jose.exceptions import JWSError
-
-try:
-    from jose.backends.cryptography_backend import CryptographyRSAKey
-except ImportError:
-    CryptographyRSAKey = None
+from joselib import jwk, jws
+from joselib.constants import ALGORITHMS
+from joselib.exceptions import JWSError
 
 
-@pytest.fixture
+@pytest.fixture()
 def payload():
-    payload = b"test payload"
-    return payload
+    return b"test payload"
 
 
 class TestJWS:
-    def test_unicode_token(self):
-        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
+    @staticmethod
+    def test_unicode_token(token: str) -> None:
         jws.verify(token, "secret", ["HS256"])
 
-    def test_multiple_keys(self):
+    @staticmethod
+    def test_multiple_keys(token: str) -> None:
         old_jwk_verify = jwk.HMACKey.verify
         try:
-            token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
 
             def raise_exception(self, msg, sig):
                 if self.prepared_key == b"incorrect":
-                    raise Exception("Mocked function jose.jwk.HMACKey.verify")
-                else:
-                    return True
+                    msg = "Mocked function jose.jwk.HMACKey.verify"
+                    raise Exception(msg)
+                return True
 
             jwk.HMACKey.verify = raise_exception
             jws.verify(token, {"keys": ["incorrect", "secret"]}, ["HS256"])
         finally:
             jwk.HMACKey.verify = old_jwk_verify
 
-    def test_invalid_algorithm(self):
-        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.jiMyrsmD8AoHWeQgmxZ5yq8z0lXS67_QGs52AzC8Ru8"
+    def test_invalid_algorithm(self, token: str):
         with pytest.raises(JWSError):
             jws.verify(token, "secret", [None])
 
@@ -83,10 +75,12 @@ class TestJWS:
         ],
     )
     def test_round_trip_with_different_key_types(self, key):
-        signed_data = jws.sign({"testkey": "testvalue"}, key, algorithm=ALGORITHMS.HS256)
+        signed_data = jws.sign(
+            {"testkey": "testvalue"}, key, algorithm=ALGORITHMS.HS256
+        )
         verified_bytes = jws.verify(signed_data, key, algorithms=[ALGORITHMS.HS256])
         verified_data = json.loads(verified_bytes.decode("utf-8"))
-        assert "testkey" in verified_data.keys()
+        assert "testkey" in verified_data
         assert verified_data["testkey"] == "testvalue"
 
 
@@ -207,7 +201,7 @@ Ks3IHH7tVltM6NsRk3jNdVMCAwEAAQ==
 -----END PUBLIC KEY-----"""
 
 
-@pytest.fixture
+@pytest.fixture()
 def jwk_set():
     return {
         "keys": [
@@ -279,10 +273,10 @@ class TestGetKeys:
         assert [{}, {}] == jws._get_keys(key)
 
     def test_string(self):
-        assert ("test",) == jws._get_keys("test")
+        assert jws._get_keys("test") == ("test",)
 
     def test_tuple(self):
-        assert ("test", "key") == jws._get_keys(("test", "key"))
+        assert jws._get_keys(("test", "key")) == ("test", "key")
 
     def test_list(self):
         assert ["test", "key"] == jws._get_keys(["test", "key"])
@@ -292,7 +286,6 @@ class TestGetKeys:
         assert (jwkey,) == jws._get_keys(jwkey)
 
 
-@pytest.mark.skipif(RSAKey is None, reason="RSA is not available")
 class TestRSA:
     def test_jwk_set(self, jwk_set):
         # Would raise a JWSError if validation failed.
@@ -304,7 +297,7 @@ class TestRSA:
         # Remove the key that was used to sign this token.
         del jwk_set["keys"][1]
         with pytest.raises(JWSError):
-            payload = jws.verify(google_id_token, jwk_set, ALGORITHMS.RS256)  # noqa: F841
+            jws.verify(google_id_token, jwk_set, ALGORITHMS.RS256)
 
     def test_RSA256(self, payload):
         token = jws.sign(payload, rsa_private_key, algorithm=ALGORITHMS.RS256)
@@ -338,8 +331,9 @@ class TestRSA:
             # verify with private raises warning
             jws.verify(token, rsa_private_key, algorithms="RS256")
 
-            assert ("Attempting to verify a message with a private key. " "This is not recommended.") == str(
-                w[-1].message
+            assert str(w[-1].message) == (
+                "Attempting to verify a message with a private key. "
+                "This is not recommended."
             )
 
 

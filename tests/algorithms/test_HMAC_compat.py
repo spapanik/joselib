@@ -1,30 +1,14 @@
 import pytest
 
-try:
-    from jose.backends.cryptography_backend import CryptographyHMACKey
-except ImportError:
-    CryptographyHMACKey = None
-
-from jose.backends.native import HMACKey
-from jose.constants import ALGORITHMS
-
-CRYPTO_BACKENDS = (
-    pytest.param(CryptographyHMACKey, id="pyca/cryptography"),
-    pytest.param(HMACKey, id="native"),
-)
+from joselib.constants import ALGORITHMS
+from joselib.keys import HMACKey
 
 SUPPORTED_ALGORITHMS = ALGORITHMS.HMAC
 
 
-@pytest.mark.backend_compatibility
-@pytest.mark.skipif(
-    CryptographyHMACKey is None, reason="Multiple crypto backends not available for backend compatibility tests"
-)
 class TestBackendAesCompatibility:
-    @pytest.mark.parametrize("backend_sign", CRYPTO_BACKENDS)
-    @pytest.mark.parametrize("backend_verify", CRYPTO_BACKENDS)
-    @pytest.mark.parametrize("algorithm", SUPPORTED_ALGORITHMS)
-    def test_encryption_parity(self, backend_sign, backend_verify, algorithm):
+    @pytest.mark.parametrize("algorithm", ALGORITHMS.HMAC)
+    def test_encryption_parity(self, algorithm):
         if "128" in algorithm:
             key = b"8slRzzty6dKMaFCP"
         elif "192" in algorithm:
@@ -32,8 +16,8 @@ class TestBackendAesCompatibility:
         else:
             key = b"8slRzzty6dKMaFCP8slRzzty6dKMaFCP"
 
-        key_sign = backend_sign(key, algorithm)
-        key_verify = backend_verify(key, algorithm)
+        key_sign = HMACKey(key, algorithm)
+        key_verify = HMACKey(key, algorithm)
 
         message = b"test"
 

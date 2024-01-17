@@ -1,0 +1,16 @@
+from collections.abc import Callable
+from typing import Protocol
+
+
+class Hash(Protocol):
+    @property
+    def digest_size(self) -> int: ...
+    @property
+    def block_size(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    def digest(self) -> bytes: ...
+    def hexdigest(self) -> str: ...
+
+
+HashFunction = Callable[..., Hash]

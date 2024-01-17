@@ -2,17 +2,19 @@ import json
 
 import pytest
 
-from jose.backends.native import HMACKey
-from jose.constants import ALGORITHMS
-from jose.exceptions import JOSEError
+from joselib.constants import ALGORITHMS
+from joselib.exceptions import JOSEError
+from joselib.keys import HMACKey
 
 
 class TestHMACAlgorithm:
-    def test_non_string_key(self):
+    @staticmethod
+    def test_non_string_key() -> None:
         with pytest.raises(JOSEError):
             HMACKey(object(), ALGORITHMS.HS256)
 
-    def test_RSA_key(self):
+    @staticmethod
+    def test_RSA_key() -> None:
         key = "-----BEGIN PUBLIC KEY-----"
         with pytest.raises(JOSEError):
             HMACKey(key, ALGORITHMS.HS256)
@@ -29,7 +31,8 @@ class TestHMACAlgorithm:
         with pytest.raises(JOSEError):
             HMACKey(key, ALGORITHMS.HS256)
 
-    def test_to_dict(self):
+    @staticmethod
+    def test_to_dict() -> None:
         passphrase = "The quick brown fox jumps over the lazy dog"
         encoded = "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZw"
         key = HMACKey(passphrase, ALGORITHMS.HS256)
