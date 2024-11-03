@@ -1,0 +1,55 @@
+$globals:
+  version: "8.1"
+  vars:
+    p_sync: --sync
+    p_verbose: --verbose
+
+build:
+  phony: true
+  commands:
+    - p build ${.extra}
+
+clean:
+  phony: true
+  commands:
+    - rm -f dist/*
+
+install:
+  phony: true
+  keep_ts: true
+  requires:
+    - p-lock.toml
+  commands:
+    - p install ${p_sync} ${p_verbose} ${.extra}
+
+format:
+  phony: true
+  requires:
+    - install
+  commands:
+    - black .
+    - ruff check --fix-only .
+
+lint:
+  phony: true
+  requires:
+    - install
+  commands:
+    - black --check .
+    - p check --lockfile
+    - ruff check .
+    - mypy .
+
+tests:
+  phony: true
+  requires:
+    - install
+  commands:
+    - pytest ${.extra}
+
+p-lock.toml:
+  update: true
+  requires:
+    - pyproject.toml
+  commands:
+    - p lock ${p_verbose}
